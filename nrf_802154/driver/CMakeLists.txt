@@ -6,7 +6,7 @@
 
 target_include_directories(nrf-802154-interface INTERFACE include)
 
-add_library(nrf-802154-driver)
+add_library(nrf-802154-driver STATIC EXCLUDE_FROM_ALL)
 
 target_include_directories(nrf-802154-driver
   PRIVATE

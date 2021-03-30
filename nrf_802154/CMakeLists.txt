@@ -4,13 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-if(RADIO_DRIVER)
-  add_subdirectory(driver)
-  add_subdirectory(sl)
-endif()
+add_library(nrf-802154-interface INTERFACE)
 
-if(SERIALIZATION)
-  add_subdirectory(serialization)
-endif()
+add_subdirectory(driver)
+add_subdirectory(sl)
 
-
+add_subdirectory(serialization)

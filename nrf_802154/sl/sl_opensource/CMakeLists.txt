@@ -6,7 +6,7 @@
 
 target_include_directories(nrf-802154-interface INTERFACE include)
 
-add_library(nrf-802154-sl STATIC)
+add_library(nrf-802154-sl STATIC EXCLUDE_FROM_ALL)
 
 target_link_libraries(nrf-802154-sl
   PRIVATE

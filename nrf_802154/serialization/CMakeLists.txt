@@ -11,7 +11,7 @@ target_include_directories(nrf-802154-interface
     include/serialization
 )
 
-add_library(nrf-802154-serialization STATIC)
+add_library(nrf-802154-serialization STATIC EXCLUDE_FROM_ALL)
 
 target_include_directories(nrf-802154-serialization
   PRIVATE
