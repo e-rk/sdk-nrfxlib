@@ -24,6 +24,7 @@ Changes
 * Timeslot API values ``MPSL_TIMESLOT_DISTANCE_MAX_US`` and ``MPSL_TIMESLOT_EARLIEST_TIMEOUT_MAX_US`` increased to 256 seconds (DRGN-16800).
 * Extended  :c:struct:`mpsl_fem_nrf21540_gpio_interface_config_t` with :c:member:`mpsl_fem_nrf21540_gpio_interface_config_t.mode_pin_config`
   and :c:member:`mpsl_fem_nrf21540_gpio_interface_config_t.fem_config.pa_gains_db`
+* Changed :c:struct:`mpsl_fem_gpiote_pin_config_t` and :c:struct:`mpsl_fem_gpio_pin_config_t` to require GPIO port address, port number and relative pin number instead of the absolute pin number (KRKNWK-11891).
 
 Bug fixes
 =========
