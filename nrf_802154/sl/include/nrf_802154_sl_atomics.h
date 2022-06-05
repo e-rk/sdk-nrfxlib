@@ -74,20 +74,6 @@ bool nrf_802154_sl_mutex_try_acquire(nrf_802154_sl_mutex_t * p_mutex);
  */
 bool nrf_802154_sl_mutex_release(nrf_802154_sl_mutex_t * p_mutex);
 
-/**@brief Type representing an atomic uint8_t */
-typedef volatile uint8_t nrf_802154_sl_atomic_uint8_t;
-
-/**@brief Atomic increase of uint8_t value.
- *
- * Performs following code in an atomic way:
- * @code
- * *(p_value)++;
- * @endcode
- *
- * @param p_value   Pointer to a value to be incremented.
- */
-void nrf_802154_sl_atomic_uint8_inc(nrf_802154_sl_atomic_uint8_t * p_value);
-
 /**@brief Atomic strong compare-and-swap operation (word variant).
  *
  * Performs compare-and-swap operation with sequentially consistent memory ordering.
@@ -287,6 +273,96 @@ static inline uint8_t nrf_802154_sl_atomic_load_u8(uint8_t * p_obj)
     __DMB();
 
     return value;
+}
+
+/**@brief Atomic fetch-add operation (word variant).
+ *
+ * Performs fetch operation and adds specified value with sequentailly consistent memory ordering.
+ *
+ * @param[in] p_obj   Atomic variable object.
+ * @param[in] val     Value to be added to the object.
+ *
+ * @returns Old p_obj value.
+ */
+static inline uint32_t nrf_802154_sl_atomic_fetch_add_u32(uint32_t * p_obj, uint32_t val)
+{
+    uint32_t value;
+
+    __DMB();
+
+    do
+    {
+        value = __LDREXW((volatile uint32_t *)p_obj);
+    }
+    while (__STREXW(value + val, (volatile uint32_t *)p_obj));
+    __DMB();
+
+    return value;
+}
+
+/**@brief Atomic fetch-add operation (byte variant).
+ *
+ * Performs fetch operation and adds specified value with sequentailly consistent memory ordering.
+ *
+ * @param[in] p_obj   Atomic variable object.
+ * @param[in] val     Value to be added to the object.
+ *
+ * @returns Old p_obj value.
+ */
+static inline uint8_t nrf_802154_sl_atomic_fetch_add_u8(uint8_t * p_obj, uint8_t val)
+{
+    uint8_t value;
+
+    __DMB();
+
+    do
+    {
+        value = __LDREXB((volatile uint8_t *)p_obj);
+    }
+    while (__STREXB(value + val, (volatile uint8_t *)p_obj));
+    __DMB();
+
+    return value;
+}
+
+/**@brief Atomic fetch-sub operation (word variant).
+ *
+ * Performs fetch operation and subtracts specified value with sequentailly consistent memory
+ * ordering.
+ *
+ * @param[in] p_obj   Atomic variable object.
+ * @param[in] val     Value to be subtracted from the object.
+ *
+ * @returns Old p_obj value.
+ */
+static inline uint32_t nrf_802154_sl_atomic_fetch_sub_u32(uint32_t * p_obj, uint32_t val)
+{
+    uint32_t value;
+
+    __DMB();
+
+    do
+    {
+        value = __LDREXW((volatile uint32_t *)p_obj);
+    }
+    while (__STREXW(value - val, (volatile uint32_t *)p_obj));
+    __DMB();
+
+    return value;
+}
+
+/**@brief Atomic increase of uint8_t value.
+ *
+ * Performs following code in an atomic way:
+ * @code
+ * *(p_obj)++;
+ * @endcode
+ *
+ * @param p_obj   Pointer to a value to be incremented.
+ */
+static inline uint8_t nrf_802154_sl_atomic_inc_u8(uint8_t * p_obj)
+{
+    return nrf_802154_sl_atomic_fetch_add_u8(p_obj, 1);
 }
 
 #ifdef __cplusplus

@@ -74,7 +74,7 @@
 #include "mac_features/ack_generator/nrf_802154_ack_generator.h"
 #include "rsch/nrf_802154_rsch.h"
 #include "rsch/nrf_802154_rsch_crit_sect.h"
-#include "timer/nrf_802154_timer_coord.h"
+#include "nrf_802154_sl_timestamper.h"
 #include "platform/nrf_802154_hp_timer.h"
 #include "platform/nrf_802154_irq.h"
 #include "protocol/mpsl_fem_protocol_api.h"
@@ -154,6 +154,8 @@ static nrf_802154_coex_tx_request_mode_t m_coex_tx_request_mode;
 
 /** @brief Identifier of currently active reception window. */
 static uint32_t m_rx_window_id;
+
+static nrf_802154_sl_timestamper_t m_timestamper;
 
 #if NRF_802154_TOTAL_TIMES_MEASUREMENT_ENABLED
 #if !NRF_802154_FRAME_TIMESTAMP_ENABLED
@@ -259,22 +261,24 @@ static uint8_t lqi_get(const uint8_t * p_data)
     return (uint8_t)lqi;
 }
 
-#if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
 /**
- * @brief Get timestamp made by timer coordinator.
+ * @brief Get timestamp made by event timestamper.
  *
  * @note This function increments the returned value by 1 us if the timestamp is equal to the
  *       @ref NRF_802154_NO_TIMESTAMP value to indicate that the timestamp is available.
  *
- * @returns Timestamp [us] of the last event captured by timer coordinator frame or
+ * @returns Timestamp [us] of the last event captured by event timestamper frame or
  *          @ref NRF_802154_NO_TIMESTAMP if the timestamp is inaccurate.
  */
-static uint64_t timer_coord_timestamp_get(void)
+static uint64_t timestamper_timestamp_get(void)
 {
-    uint64_t timestamp          = NRF_802154_NO_TIMESTAMP;
-    bool     timestamp_received = nrf_802154_timer_coord_timestamp_get(&timestamp);
+    uint64_t                        timestamp;
+    nrf_802154_sl_timestamper_ret_t ret;
 
-    if (!timestamp_received)
+    ret = nrf_802154_sl_timestamper_timestamp_get(&m_timestamper, &timestamp);
+    nrf_802154_sl_timestamper_cleanup(&m_timestamper);
+
+    if (ret != NRF_802154_SL_TIMESTAMPER_RET_SUCCESS)
     {
         timestamp = NRF_802154_NO_TIMESTAMP;
     }
@@ -289,8 +293,6 @@ static uint64_t timer_coord_timestamp_get(void)
 
     return timestamp;
 }
-
-#endif
 
 static void received_frame_notify(uint8_t * p_data)
 {
@@ -801,6 +803,8 @@ static void trx_abort(void)
 
 #endif
 
+    nrf_802154_sl_timestamper_cleanup(&m_timestamper);
+
     nrf_802154_trx_abort();
 
 #if (NRF_802154_TOTAL_TIMES_MEASUREMENT_ENABLED)
@@ -820,6 +824,8 @@ static void trx_disable(void)
     bool        update_required = operation_terminated_update_total_times_is_required(trx_state);
 
 #endif
+
+    nrf_802154_sl_timestamper_cleanup(&m_timestamper);
 
     nrf_802154_trx_disable();
 
@@ -904,11 +910,8 @@ static bool current_operation_terminate(nrf_802154_term_t term_lvl,
 /** Enter Sleep state. */
 static void sleep_init(void)
 {
-    // This function is always executed from a critical section, so this check is safe.
-    if (timeslot_is_granted())
-    {
-        nrf_802154_timer_coord_stop();
-    }
+    // This function is always executed from a critical section.
+    // Intentionally empty
 }
 
 /** Initialize Falling Asleep operation. */
@@ -1037,15 +1040,13 @@ static void rx_init(void)
     m_listening_start_hp_timestamp = nrf_802154_hp_timer_current_time_get();
 #endif
 
-#if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
 #if (NRF_802154_TOTAL_TIMES_MEASUREMENT_ENABLED)
-    // Configure the timer coordinator to get a timestamp of the END event which
+    // Configure the event timestamper to get a timestamp of the END event which
     // fires several cycles after CRCOK or CRCERROR events.
-    nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_end_event_handle_get());
+    nrf_802154_sl_timestamper_setup(&m_timestamper, nrf_802154_trx_radio_end_event_handle_get());
 #else
-    // Configure the timer coordinator to get a timestamp of the CRCOK event.
-    nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_crcok_event_handle_get());
-#endif
+    // Configure the event timestamper to get a timestamp of the CRCOK event.
+    nrf_802154_sl_timestamper_setup(&m_timestamper, nrf_802154_trx_radio_crcok_event_handle_get());
 #endif
 
     // Find RX buffer if none available
@@ -1075,20 +1076,20 @@ static bool tx_init(const uint8_t * p_data, bool cca)
         return false;
     }
 
-#if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
     if (cca)
     {
-        // Configure the timer coordinator to get a time stamp of the READY event.
+        // Configure the event timestamper to get a time stamp of the READY event.
         // Note: This event triggers CCASTART, so the time stamp of READY event
         // is the time stamp when CCA started.
-        nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_ready_event_handle_get());
+        nrf_802154_sl_timestamper_setup(&m_timestamper,
+                                        nrf_802154_trx_radio_ready_event_handle_get());
     }
     else
     {
-        // Configure the timer coordinator to get a time stamp of the PHYEND event.
-        nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_phyend_event_handle_get());
+        // Configure the event timestamper to get a time stamp of the PHYEND event.
+        nrf_802154_sl_timestamper_setup(&m_timestamper,
+                                        nrf_802154_trx_radio_phyend_event_handle_get());
     }
-#endif
 
     m_flags.tx_with_cca = cca;
     nrf_802154_trx_transmit_frame(nrf_802154_tx_work_buffer_get(p_data),
@@ -1207,8 +1208,6 @@ static void on_timeslot_ended(void)
         }
 
         trx_disable();
-
-        nrf_802154_timer_coord_stop();
 
         nrf_802154_rsch_continuous_ended();
 
@@ -1389,8 +1388,6 @@ static void on_timeslot_started(void)
     nrf_802154_trx_enable();
 
     m_rsch_timeslot_is_granted = true;
-
-    nrf_802154_timer_coord_start();
 
     nrf_802154_log_function_exit(NRF_802154_LOG_VERBOSITY_LOW);
 }
@@ -1920,9 +1917,9 @@ void nrf_802154_trx_receive_frame_crcerror(void)
 #if NRF_802154_TOTAL_TIMES_MEASUREMENT_ENABLED
     m_listening_start_hp_timestamp = nrf_802154_hp_timer_current_time_get();
 
-    // Configure the timer coordinator to get a timestamp of the END event which
+    // Configure the event timestamper to get a timestamp of the END event which
     // fires several cycles after CRCOK or CRCERROR events.
-    nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_end_event_handle_get());
+    nrf_802154_sl_timestamper_setup(&m_timestamper, nrf_802154_trx_radio_end_event_handle_get());
 #endif
 
 #else
@@ -2012,6 +2009,8 @@ void nrf_802154_trx_receive_frame_received(void)
         nrf_802154_frame_parser_ar_bit_is_set(&m_current_rx_frame_data) &&
         !nrf_802154_rsch_timeslot_request(nrf_802154_rx_duration_get(0, true)))
     {
+        nrf_802154_sl_timestamper_cleanup(&m_timestamper);
+
         // Frame is destined to this node but there is no timeslot to transmit ACK.
         // Just disable receiver and wait for a new timeslot.
         nrf_802154_trx_abort();
@@ -2037,7 +2036,7 @@ void nrf_802154_trx_receive_frame_received(void)
         nrf_802154_stat_counter_increment(received_frames);
 
 #if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
-        uint64_t ts = timer_coord_timestamp_get();
+        uint64_t ts = timestamper_timestamp_get();
 
         nrf_802154_stat_timestamp_write(last_rx_end_timestamp, ts);
 #endif
@@ -2200,7 +2199,7 @@ void nrf_802154_trx_transmit_frame_transmitted(void)
 #endif
 
 #if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
-    uint64_t ts = timer_coord_timestamp_get();
+    uint64_t ts = timestamper_timestamp_get();
 
     // ts holds now timestamp of the PHYEND event
     nrf_802154_stat_timestamp_write(last_tx_end_timestamp, ts);
@@ -2246,15 +2245,15 @@ void nrf_802154_trx_transmit_frame_transmitted(void)
 
         nrf_802154_trx_receive_buffer_set(rx_buffer_get());
 
-#if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
 #if (NRF_802154_TOTAL_TIMES_MEASUREMENT_ENABLED)
-        // Configure the timer coordinator to get a timestamp of the END event which
+        // Configure the event timestamper to get a timestamp of the END event which
         // fires several cycles after CRCOK or CRCERROR events.
-        nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_end_event_handle_get());
+        nrf_802154_sl_timestamper_setup(&m_timestamper,
+                                        nrf_802154_trx_radio_end_event_handle_get());
 #else
-        // Configure the timer coordinator to get a timestamp of the CRCOK event.
-        nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_crcok_event_handle_get());
-#endif
+        // Configure the event timestamper to get a timestamp of the CRCOK event.
+        nrf_802154_sl_timestamper_setup(&m_timestamper,
+                                        nrf_802154_trx_radio_crcok_event_handle_get());
 #endif
 
         nrf_802154_trx_receive_ack();
@@ -2419,7 +2418,7 @@ void nrf_802154_trx_receive_ack_received(void)
     if (ack_match_check(mp_tx_data, p_ack_data))
     {
 #if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
-        uint64_t ts = timer_coord_timestamp_get();
+        uint64_t ts = timestamper_timestamp_get();
 
         nrf_802154_stat_timestamp_write(last_ack_end_timestamp, ts);
 #endif
@@ -2469,15 +2468,13 @@ void nrf_802154_trx_transmit_frame_ccaidle(void)
     assert(m_state == RADIO_STATE_CCA_TX);
     assert(m_trx_transmit_frame_notifications_mask & TRX_TRANSMIT_NOTIFICATION_CCAIDLE);
 
-#if (NRF_802154_FRAME_TIMESTAMP_ENABLED)
-    uint64_t ts = timer_coord_timestamp_get();
+    uint64_t ts = timestamper_timestamp_get();
 
-    // Configure the timer coordinator to get a timestamp of the PHYEND event.
-    nrf_802154_timer_coord_timestamp_prepare(nrf_802154_trx_radio_phyend_event_handle_get());
+    // Configure the event timestamper to get a timestamp of the PHYEND event.
+    nrf_802154_sl_timestamper_setup(&m_timestamper, nrf_802154_trx_radio_phyend_event_handle_get());
 
     // Update stat timestamp of CCASTART event
     nrf_802154_stat_timestamp_write(last_cca_start_timestamp, ts);
-#endif
 
     if (m_coex_tx_request_mode == NRF_802154_COEX_TX_REQUEST_MODE_CCA_DONE)
     {
@@ -2564,6 +2561,7 @@ void nrf_802154_core_init(void)
     m_rx_prestarted_trig_count = 0;
 
     nrf_802154_sl_timer_init(&m_rx_prestarted_timer);
+    nrf_802154_sl_timestamper_init(&m_timestamper);
 
     nrf_802154_trx_init();
     nrf_802154_ack_generator_init();
@@ -2583,6 +2581,7 @@ void nrf_802154_core_deinit(void)
     nrf_802154_irq_disable(RADIO_IRQn);
     nrf_802154_irq_clear_pending(RADIO_IRQn);
 
+    nrf_802154_sl_timestamper_deinit(&m_timestamper);
     nrf_802154_sl_timer_deinit(&m_rx_prestarted_timer);
 
     nrf_802154_log_function_exit(NRF_802154_LOG_VERBOSITY_LOW);

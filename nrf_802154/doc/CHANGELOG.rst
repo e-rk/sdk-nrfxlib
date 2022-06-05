@@ -9,6 +9,21 @@ Changelog
 
 All notable changes to this project are documented in this file.
 
+Main branch
+***********
+
+Notable changes
+===============
+
+* Reworked the implementation of the internal event timestamper service. (KRKNWK-13072)
+
+Bug fixes
+=========
+
+* For delayed transmission on nRF5340 when passing NULL metadata the channel now defaults to the value in PIB.
+  It used to be 11, which was inconsistent with the behaviour on nRF52. (KRKNWK-13539)
+* Fixed incorrect CSL phase calculation (the calculated phase was too small). (KRKNWK-13782)
+
 nRF Connect SDK v2.0.0 - nRF 802.15.4 Radio Driver
 **************************************************
 

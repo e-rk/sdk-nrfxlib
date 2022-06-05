@@ -52,4 +52,5 @@ target_sources(nrf-802154-sl
     src/nrf_802154_sl_log.c
     src/nrf_802154_sl_rsch.c
     src/nrf_802154_sl_timer.c
+    src/nrf_802154_sl_timestamper.c
 )

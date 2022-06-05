@@ -59,7 +59,7 @@ extern "C" {
  * for precise frame timestamps or synchronous radio operations.
  *
  * @note The High Precision Timer is relative. To use it as an absolute timer,
- *       synchronize it with the Low Power Timer using the Timer Coordinator module.
+ *       synchronize it with the Low Power Timer.
  *
  */
 

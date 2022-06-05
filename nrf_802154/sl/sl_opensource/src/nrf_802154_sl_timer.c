@@ -46,26 +46,6 @@ static void timeout_handler(struct k_timer * timer_id);
 
 K_TIMER_DEFINE(timer, timeout_handler, NULL);
 
-void nrf_802154_timer_coord_init(void)
-{
-    // Intentionally empty
-}
-
-void nrf_802154_timer_coord_uninit(void)
-{
-    // Intentionally empty
-}
-
-void nrf_802154_timer_coord_start(void)
-{
-    // Intentionally empty
-}
-
-void nrf_802154_timer_coord_stop(void)
-{
-    // Intentionally empty
-}
-
 void nrf_802154_sl_timer_module_init(void)
 {
     BUILD_ASSERT(CONFIG_SYS_CLOCK_TICKS_PER_SEC == NRF_802154_SL_RTC_FREQUENCY);

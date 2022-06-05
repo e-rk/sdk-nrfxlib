@@ -48,9 +48,9 @@ extern "C" {
 typedef struct
 {
     /**@brief Pointer to the head of the list. */
-    void * volatile              p_head;
+    void * volatile p_head;
     /**@brief Counter incremented every time the list changes.*/
-    nrf_802154_sl_atomic_uint8_t bump_counter;
+    uint8_t         bump_counter;
 } nrf_802154_sl_atomic_list_t;
 
 /**@brief Structure that needs to be contained in every struct capable of being stored in a list.

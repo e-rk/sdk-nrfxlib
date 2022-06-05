@@ -67,7 +67,7 @@
 #include "platform/nrf_802154_temperature.h"
 #include "rsch/nrf_802154_rsch.h"
 #include "rsch/nrf_802154_rsch_crit_sect.h"
-#include "timer/nrf_802154_timer_coord.h"
+#include "nrf_802154_sl_timestamper.h"
 
 #include "mac_features/nrf_802154_ack_timeout.h"
 #include "mac_features/nrf_802154_delayed_trx.h"
@@ -223,6 +223,11 @@ uint64_t nrf_802154_first_symbol_timestamp_get(uint64_t end_timestamp, uint8_t p
     return end_timestamp - (frame_symbols * PHY_US_PER_SYMBOL);
 }
 
+uint64_t nrf_802154_mhr_timestamp_get(uint64_t end_timestamp, uint8_t psdu_length)
+{
+    return end_timestamp - (psdu_length * PHY_SYMBOLS_PER_OCTET * PHY_US_PER_SYMBOL);
+}
+
 void nrf_802154_init(void)
 {
     static const nrf_802154_sl_crit_sect_interface_t crit_sect_int =
@@ -247,7 +252,7 @@ void nrf_802154_init(void)
     nrf_802154_rsch_init();
     nrf_802154_rx_buffer_init();
     nrf_802154_temperature_init();
-    nrf_802154_timer_coord_init();
+    nrf_802154_sl_timestamper_module_init();
 #if NRF_802154_ACK_TIMEOUT_ENABLED
     nrf_802154_ack_timeout_init();
 #endif
@@ -261,7 +266,7 @@ void nrf_802154_init(void)
 
 void nrf_802154_deinit(void)
 {
-    nrf_802154_timer_coord_uninit();
+    nrf_802154_sl_timestamper_module_deinit();
     nrf_802154_temperature_deinit();
     nrf_802154_rsch_uninit();
     nrf_802154_random_deinit();
