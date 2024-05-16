@@ -342,7 +342,39 @@ static inline bool packet_validate(const uint8_t *packet)
 	       (addr < (uintptr_t)0 - (uintptr_t)NRF_RPC_HEADER_SIZE);
 }
 
-static int transport_init(nrf_rpc_tr_receive_handler_t receive_cb)
+static int transport_init_selected(const struct nrf_rpc_group *group, nrf_rpc_tr_receive_handler_t receive_cb)
+{
+	int err;
+	const struct nrf_rpc_tr *transport = group->transport;
+	struct nrf_rpc_group_data *data = group->data;
+
+	NRF_RPC_ASSERT(transport != NULL);
+
+	err = transport->api->init(transport, receive_cb, NULL);
+	if (err) {
+		NRF_RPC_ERR("Failed to initialize transport, err: %d", err);
+		return err;
+	}
+
+	if (auto_free_rx_buf(transport)) {
+		err = nrf_rpc_os_event_init(&data->decode_done_event);
+		if (err < 0) {
+			return err;
+		}
+	}
+
+	group->data->transport_initialized = true;
+	err = group_init_send(group);
+	if (err) {
+		NRF_RPC_ERR("Failed to send group init packet for group id: %d strid: %s",
+				data->src_group_id, group->strid);
+		return err;
+	}
+
+	return err;
+}
+
+static int transport_init_on_autoinit(nrf_rpc_tr_receive_handler_t receive_cb)
 {
 	int err;
 	void *iter;
@@ -350,31 +382,14 @@ static int transport_init(nrf_rpc_tr_receive_handler_t receive_cb)
 
 	for (NRF_RPC_AUTO_ARR_FOR(iter, group, &nrf_rpc_groups_array,
 				 const struct nrf_rpc_group)) {
-		const struct nrf_rpc_tr *transport = group->transport;
-		struct nrf_rpc_group_data *data = group->data;
 
-		NRF_RPC_ASSERT(transport != NULL);
-
-		err = transport->api->init(transport, receive_cb, NULL);
-		if (err) {
-			NRF_RPC_ERR("Failed to initialize transport, err: %d", err);
+		if (!group->autoinit) {
+			NRF_RPC_INF("Group initialization skipped for group id: %d strid: %s",
+			            group->data->src_group_id, group->strid);
 			continue;
 		}
 
-		if (auto_free_rx_buf(transport)) {
-			err = nrf_rpc_os_event_init(&data->decode_done_event);
-			if (err < 0) {
-				continue;
-			}
-		}
-
-		group->data->transport_initialized = true;
-		err = group_init_send(group);
-		if (err) {
-			NRF_RPC_ERR("Failed to send group init packet for group id: %d strid: %s",
-				    data->src_group_id, group->strid);
-			continue;
-		}
+		err = transport_init_selected(group, receive_cb);
 	}
 
 	err = nrf_rpc_os_event_wait(&groups_init_event, CONFIG_NRF_RPC_GROUP_INIT_WAIT_TIME);
@@ -603,11 +618,13 @@ static int init_packet_handle(struct header *hdr, const struct nrf_rpc_group **g
 		return -NRF_EFAULT;
 	}
 
+	printk("Init packet pre: init_cnt: %u, grp_cnt: %u\n", initialized_group_count, group_count);
 	initialized_group_count++;
 	if (initialized_group_count == group_count) {
 		/* All group are initialized. */
 		nrf_rpc_os_event_set(&groups_init_event);
 	}
+	printk("Init packet post: init_cnt: %u, grp_cnt: %u\n", initialized_group_count, group_count);
 
 	return 0;
 }
@@ -966,6 +983,7 @@ int nrf_rpc_init(nrf_rpc_err_handler_t err_handler)
 	void *iter;
 	const struct nrf_rpc_group *group;
 	uint8_t group_id = 0;
+	uint8_t autoinit_count = 0;
 
 	NRF_RPC_DBG("Initializing nRF RPC module");
 
@@ -986,9 +1004,13 @@ int nrf_rpc_init(nrf_rpc_err_handler_t err_handler)
 		NRF_RPC_DBG("Group '%s' has id %d", group->strid, group_id);
 		data->src_group_id = group_id;
 		group_id++;
+
+		if (group->autoinit) {
+			autoinit_count++;
+		}
 	}
 
-	group_count = group_id;
+	group_count = autoinit_count;
 
 	memset(&cmd_ctx_pool, 0, sizeof(cmd_ctx_pool));
 
@@ -1010,13 +1032,39 @@ int nrf_rpc_init(nrf_rpc_err_handler_t err_handler)
 		}
 	}
 
-	err = transport_init(receive_handler);
+	err = transport_init_on_autoinit(receive_handler);
 	if (err < 0) {
 		return err;
 	}
 
 	is_initialized = true;
 	NRF_RPC_DBG("Done initializing nRF RPC module");
+
+	return err;
+}
+
+int nrf_rpc_group_init(const struct nrf_rpc_group *group)
+{
+	int err;
+
+	if (group->autoinit) {
+		NRF_RPC_ERR("Transport is not initialized");
+		return -NRF_EINVAL;
+	}
+
+	if (group->data->transport_initialized) {
+		NRF_RPC_ERR("Transport already initialized");
+		return -NRF_EALREADY;
+	}
+
+	group_count++;
+
+	transport_init_selected(group, receive_handler);
+
+	err = nrf_rpc_os_event_wait(&groups_init_event, CONFIG_NRF_RPC_GROUP_INIT_WAIT_TIME);
+	if (err) {
+		NRF_RPC_ERR("Not all groups are ready to use.");
+	}
 
 	return err;
 }

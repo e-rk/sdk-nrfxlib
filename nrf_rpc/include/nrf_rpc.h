@@ -127,6 +127,7 @@ struct nrf_rpc_group {
 	void *ack_handler_data;
 	const char *strid;
 	nrf_rpc_err_handler_t err_handler;
+	bool autoinit;
 };
 
 /** @brief Error report.
@@ -189,6 +190,33 @@ struct nrf_rpc_err_report {
 		.strid = _strid,					         \
 		.transport = _transport,                                         \
 		.err_handler = _err_handler,				         \
+		.autoinit = true,					         \
+	}
+
+#define NRF_RPC_GROUP_DEFINE_NOINIT(_name, _strid, _transport, _ack_handler, _ack_data,  \
+			     _err_handler)				          \
+	NRF_RPC_AUTO_ARR(NRF_RPC_CONCAT(_name, _cmd_array),		          \
+			 "cmd_" NRF_RPC_STRINGIFY(_name));		          \
+	NRF_RPC_AUTO_ARR(NRF_RPC_CONCAT(_name, _evt_array),		          \
+			 "evt_" NRF_RPC_STRINGIFY(_name));		          \
+										  \
+	static struct nrf_rpc_group_data NRF_RPC_CONCAT(_name, _group_data) = {   \
+		.src_group_id = NRF_RPC_ID_UNKNOWN,                               \
+		.dst_group_id = NRF_RPC_ID_UNKNOWN,                               \
+		.transport_initialized = false,					  \
+	};                                                                        \
+										  \
+	NRF_RPC_AUTO_ARR_ITEM(const struct nrf_rpc_group, _name, "grp",	         \
+			      _strid) = {				         \
+		.cmd_array = &NRF_RPC_CONCAT(_name, _cmd_array),	         \
+		.evt_array = &NRF_RPC_CONCAT(_name, _evt_array),	         \
+		.data = &NRF_RPC_CONCAT(_name, _group_data),                     \
+		.ack_handler = _ack_handler,				         \
+		.ack_handler_data = _ack_data,				         \
+		.strid = _strid,					         \
+		.transport = _transport,                                         \
+		.err_handler = _err_handler,				         \
+		.autoinit = false,					         \
 	}
 
 /** @brief Extern declaration of a group.
@@ -257,6 +285,8 @@ struct nrf_rpc_err_report {
  * @return            0 on success or negative error code.
  */
 int nrf_rpc_init(nrf_rpc_err_handler_t err_handler);
+
+int nrf_rpc_group_init(const struct nrf_rpc_group *group);
 
 /** @brief Send a command and provide callback to handle response.
  *
