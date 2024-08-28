@@ -57,6 +57,8 @@
 
 #include <stdint.h>
 
+#define NRF_802154_SL_ENABLE_DEBUG_LOG 1
+
 /**@def NRF_802154_SL_DEBUG_LOG_BUFFER_LEN
  * @brief Configures capacity of debug log buffer.
  *
@@ -66,7 +68,7 @@
  * @note This value must be power of 2.
  */
 #ifndef NRF_802154_SL_DEBUG_LOG_BUFFER_LEN
-#define NRF_802154_SL_DEBUG_LOG_BUFFER_LEN 1024U
+#define NRF_802154_SL_DEBUG_LOG_BUFFER_LEN (16 * 1024U)
 #endif
 
 /**@def NRF_802154_SL_DEBUG_LOG_BLOCKS_INTERRUPTS
