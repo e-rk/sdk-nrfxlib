@@ -1,0 +1,158 @@
+---
+#
+# Copyright (c) 2020 - 2021, Nordic Semiconductor ASA.
+# All Rights Reserved.
+#
+# The information contained herein is confidential property of Nordic Semiconductor ASA.
+# The use, copying, transfer or disclosure of such information is prohibited except by
+# express written agreement with Nordic Semiconductor ASA.
+#
+# Ceedling docs: https://github.com/ThrowTheSwitch/Ceedling/tree/master/docs
+# Example: https://github.com/ThrowTheSwitch/Ceedling/blob/master/examples/temp_sensor/project.yml
+
+:project:
+  :use_exceptions: FALSE
+  :use_test_preprocessor: :all
+  :use_auxiliary_dependencies: TRUE
+  :build_root: build
+  :test_file_prefix: test_
+  :which_ceedling: gem
+  :ceedling_version: 1.0.1
+  :default_tasks:
+    - test:all
+
+# performance options. If your tools start giving mysterious errors, consider 
+  # dropping this to 1 to force single-tasking
+  :test_threads: 1
+  :compile_threads: 1
+
+# Specify where to find mixins and any that should be enabled automatically
+:mixins:
+  :load_paths:
+    - ../../unit_test_support/variations
+
+:environment:
+  - nrfx_path: "#{ENV['NRFX_PATH']}"
+
+:extension:
+  :executable: .out
+
+:paths:
+  :test:
+    - test/unit_tests/**
+  :source:
+    - src/**
+  :include:
+    - ../include/**
+    - include/**
+    - ../../unit_test_support/include
+    - "#{ENV['NRFX_PATH']}/**"
+  :support:
+    - ../../unit_test_support/src
+  :libraries: []
+
+:defines:
+  # in order to add common defines:
+  #  1) remove the trailing [] from the :common: section
+  #  2) add entries to the :common: section (e.g. :test: has TEST defined)
+  :common: &common_defines []
+  :test:
+    - *common_defines
+    - TEST=TEST
+  :test_preprocess:
+    - *common_defines
+    - TEST=TEST
+
+:flags:
+  :test:
+    :compile:
+      - -g
+      - -Wall
+      - -O0
+      - -m32
+    :link:
+      - -g
+      - -m32
+  :gcov:
+    :compile:
+      - -g
+      - -Wall
+      - -O0
+      - -m32
+      - -fprofile-arcs
+      - -ftest-coverage
+    :link:
+      - -g
+      - -m32
+      - -fprofile-arcs
+      - -ftest-coverage
+
+:cmock:
+  :mock_prefix: mock_
+  :when_no_prototypes: :warn
+  :enforce_strict_ordering: TRUE
+  :plugins:
+    - :ignore
+    - :ignore_arg
+    - :callback
+    - :expect
+    - :expect_any_args
+    - :return_thru_ptr
+  :treat_as:
+    uint8:    HEX8
+    uint16:   HEX16
+    uint32:   UINT32
+    int8:     INT8
+    bool:     UINT8
+    #  :treat_externs: :include
+  :when_ptr: :compare_ptr
+
+# Add -gcov to the plugins list to make sure of the gcov plugin
+# You will need to have gcov and gcovr both installed to make it work.
+# For more information on these options, see docs in plugins/gcov
+:gcov:
+  :utilities:
+    - gcovr           # Use gcovr to create the specified reports (default).
+# The unit testing is initiated through run_unit_tests.sh script
+# These reports are not needed now. Uncomment them if needed for on-desk testing.
+#  :reports:
+#    - HtmlDetailed
+#    - Cobertura
+#    - XmlSummary
+  :gcovr:
+    :html_medium_threshold: 75
+    :html_high_threshold: 90
+
+#:tools:
+# Ceedling defaults to using gcc for compiling, linking, etc.
+# As [:tools] is blank, gcc will be used (so long as it's in your system path)
+# See documentation to configure a given toolchain for use
+
+# LIBRARIES
+# These libraries are automatically injected into the build process. Those specified as
+# common will be used in all types of builds. Otherwise, libraries can be injected in just
+# tests or releases. These options are MERGED with the options in supplemental yaml files.
+:libraries:
+  :placement: :end
+  :flag: "-l${1}"
+  :path_flag: "-L ${1}"
+  :system: []    # for example, you might list 'm' to grab the math library
+  :test: []
+  :release: []
+
+:plugins:
+  :enabled:
+    - report_tests_pretty_stdout
+    - module_generator
+    - report_tests_log_factory
+    - gcov
+    - compile_commands_json_db
+
+# Specify which reports you'd like from the log factory
+:report_tests_log_factory:
+  :reports:
+    - json 
+    - junit 
+    - cppunit 
+    - html 
+...

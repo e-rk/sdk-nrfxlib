@@ -128,8 +128,6 @@ extern void nrf_802154_clock_hfclk_ready(void);
  */
 extern void nrf_802154_clock_lfclk_ready(void);
 
-#ifdef NRF54L_SERIES
-
 /**
  * @brief Informs the nRF 802.15.4 Radio Driver about the HFXO startup latency.
  *
@@ -145,8 +143,6 @@ extern void nrf_802154_clock_lfclk_ready(void);
  *                           and the HFXO started/tuned event.
  */
 extern void nrf_802154_clock_hfclk_latency_set(uint32_t latency_us);
-
-#endif
 
 /**
  *@}
